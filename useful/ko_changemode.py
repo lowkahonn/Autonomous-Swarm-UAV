@@ -10,46 +10,46 @@ from geometry_msgs.msg import PoseStamped, TwistStamped
 from mavros_msgs.msg import State
 from mavros_msgs.srv import SetMode, CommandBool, CommandHome
 
-current_state1 = State()
+"""current_state1 = State()
 current_state2 = State()
 current_state3 = State()
 current_state4 = State()
 current_state5 = State()
-offb_set_mode = SetMode
+offb_set_mode = SetMode"""
 
 # ****** SET UP SUBSCRIBERS CALL BACK ********
 def getPoseTopicList(numuav):
     topic = []
     for i in range(numuav):
-	    top = "uav" + str(i+1) + '/mavros/local_position/pose'
+        top = "uav" + str(i+1) + "/mavros/local_position/pose"
         topic.append(top)
     return topic
 
 def getPosePublishList(numuav):
     topic = []
     for i in range(numuav):
-	    top = "uav" + str(i+1) + '/mavros/setpoint_position/local'
+        top = "uav" + str(i+1) + '/mavros/setpoint_position/local'
         topic.append(top)
     return topic
 
 def getStateTopicList(numuav):
     topic = []
     for i in range(numuav):
-	    top = "uav" + str(i+1) + '/mavros/state'
+        top = "uav" + str(i+1) + '/mavros/state'
         topic.append(top)
     return topic
 
 def getArmingServiceTopic(numuav):
     topic = []
     for i in range(numuav):
-	    top = "uav" + str(i+1) + '/mavros/cmd/arming'
+        top = "uav" + str(i+1) + '/mavros/cmd/arming'
         topic.append(top)
     return topic
 
 def getSetModeTopic(numuav):
     topic = []
     for i in range(numuav):
-	    top = "uav" + str(i+1) + '/mavros/set_mode'
+        top = "uav" + str(i+1) + '/mavros/set_mode'
         topic.append(top)
     return topic
 
@@ -120,19 +120,19 @@ def set_up_parameters(numuav):
     # subscribers
     current_state = [State() for _ in range(numuav)]
     pose = [PoseStamped() for _ in range(numuav)]
-	posetopic = getPoseTopicList(numuav)
-	statetopic = getStateTopicList(numuav)
+    posetopic = getPoseTopicList(numuav)
+    statetopic = getStateTopicList(numuav)
     publishtopic = getPosePublishList(numuav)
-	pose_pub = []
+    pose_pub = []
     armingtopic = getArmingServiceTopic(numuav)
     arming_client = []
     setmodetopic = getSetModeTopic(numuav)
     set_mode_client = []
     for i in range(numuav):
-	    rospy.Subscriber(statetopic[i], State, statecb, callback_args = i)
-	    rospy.Subscriber(posetopic[i], PoseStamped, posecb, callback_args = i)
-	    pose_pub.append(rospy.Publisher(publishtopic[i], PoseStamped, queue_size=10))
-        arming_client.appned(rospy.ServiceProxy(armingtopic[i]), CommandBool))
+        rospy.Subscriber(statetopic[i], State, statecb, callback_args = i)
+        rospy.Subscriber(posetopic[i], PoseStamped, posecb, callback_args = i)
+        pose_pub.append(rospy.Publisher(publishtopic[i], PoseStamped, queue_size=10))
+        arming_client.append(rospy.ServiceProxy(armingtopic[i]), CommandBool)
         set_mode_client.append(rospy.ServiceProxy(setmodetopic[i]), SetMode)
 
     """rospy.Subscriber("uav1/mavros/state", State, state_cb1)
@@ -214,27 +214,20 @@ def pick_active_uavs(location, pose, center, current_num_uav, offset, connection
     my_location = []
     my_offset = []
     for i, connected in enumerate(connection):
-	if connected:
+        if connected:
             my_location.append(location[i])
             my_offset.append(offset[i])
     values = {
-	'location': my_location,
-	'pose': pose,
-	'center': center,
-	'numuav': current_num_uav,
-	'offset': my_offset,
-	'connection': connection
+    'location': my_location,
+    'pose': pose,
+    'center': center,
+    'numuav': current_num_uav,
+    'offset': my_offset,
+    'connection': connection
     }
     return values
 
 # *****************************************************
-
-# ************** SET UP SUBS AND PUBS *****************
-
-set_up_parameters()
-
-# ****************************************************
-
 WHITE = (255,255,255)
 BLACK = (0,0,0)
 r = 2
@@ -244,6 +237,11 @@ z = 3
 offset = [0,2,-2,4,-4]
 numuav = 5
 shape = ''
+# ************** SET UP SUBS AND PUBS *****************
+
+set_up_parameters(numuav)
+
+# ****************************************************
 
 # ****************************************************
 
@@ -370,4 +368,4 @@ if __name__ == '__main__':
             rate.sleep()
 
     except rospy.ROSInterruptException:
-	pass
+	    pass
