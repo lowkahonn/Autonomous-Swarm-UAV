@@ -18,7 +18,55 @@ current_state5 = State()
 offb_set_mode = SetMode
 
 # ****** SET UP SUBSCRIBERS CALL BACK ********
+def getPoseTopicList(numuav):
+    topic = []
+    for i in range(numuav):
+	    top = "uav" + str(i+1) + '/mavros/local_position/pose'
+        topic.append(top)
+    return topic
 
+def getPosePublishList(numuav):
+    topic = []
+    for i in range(numuav):
+	    top = "uav" + str(i+1) + '/mavros/setpoint_position/local'
+        topic.append(top)
+    return topic
+
+def getStateTopicList(numuav):
+    topic = []
+    for i in range(numuav):
+	    top = "uav" + str(i+1) + '/mavros/state'
+        topic.append(top)
+    return topic
+
+def getArmingServiceTopic(numuav):
+    topic = []
+    for i in range(numuav):
+	    top = "uav" + str(i+1) + '/mavros/cmd/arming'
+        topic.append(top)
+    return topic
+
+def getSetModeTopic(numuav):
+    topic = []
+    for i in range(numuav):
+	    top = "uav" + str(i+1) + '/mavros/set_mode'
+        topic.append(top)
+    return topic
+
+def posecb(msg, args):
+    global location
+    callback_args = args
+    loc = [msg.pose.position.x, msg.pose.position.y, msg.pose.position.z]
+    location.insert(callback_args % numuav, loc)
+    if len(location) > numuav:
+	    del location[callback_args + 1]
+
+def statecb(msg, args):
+    global current_state
+    callback_args = args
+    current_state[callback_args] = msg
+
+"""
 def pose_cb1(msg1):
     global pos1
     pos1 = [msg1.pose.position.x, msg1.pose.position.y, msg1.pose.position.z]
@@ -57,21 +105,37 @@ def state_cb4(state4):
 
 def state_cb5(state5):
     global current_state5
-    current_state5 = state5
+    current_state5 = state5"""
 
 def setup_all_uavs(set_mode_client, arming_client):
-    if current_state1.mode != "OFFBOARD" and current_state2.mode != "OFFBOARD" and current_state3.mode != "OFFBOARD" and current_state4.mode != "OFFBOARD" and current_state5.mode != "OFFBOARD":
-        for i in range(len(set_mode_client)):
+    for i in range(len(set_mode_client)):
+        if current_state[i].mode != "OFFBOARD": #and current_state2.mode != "OFFBOARD" and current_state3.mode != "OFFBOARD" and current_state4.mode != "OFFBOARD" and current_state5.mode != "OFFBOARD":
             set_mode_client[i](base_mode=0, custom_mode="OFFBOARD")
-    else:
-        if not (current_state1.armed and current_state2.armed and current_state3.armed and current_state4.armed and current_state5.armed):
-            for i in range(len(arming_client)):
+        else:
+            if not current_state[i].armed: #and current_state2.armed and current_state3.armed and current_state4.armed and current_state5.armed):
                 arming_client[i](True)
 
-def set_up_subs_and_pubs():
-    global pose_pub, pose, set_mode_client, arming_client, location
+def set_up_parameters(numuav):
+    global current_state, pose_pub, set_mode_client, arming_client, pose
     # subscribers
-    rospy.Subscriber("uav1/mavros/state", State, state_cb1)
+    current_state = [State() for _ in range(numuav)]
+    pose = [PoseStamped() for _ in range(numuav)]
+	posetopic = getPoseTopicList(numuav)
+	statetopic = getStateTopicList(numuav)
+    publishtopic = getPosePublishList(numuav)
+	pose_pub = []
+    armingtopic = getArmingServiceTopic(numuav)
+    arming_client = []
+    setmodetopic = getSetModeTopic(numuav)
+    set_mode_client = []
+    for i in range(numuav):
+	    rospy.Subscriber(statetopic[i], State, statecb, callback_args = i)
+	    rospy.Subscriber(posetopic[i], PoseStamped, posecb, callback_args = i)
+	    pose_pub.append(rospy.Publisher(publishtopic[i], PoseStamped, queue_size=10))
+        arming_client.appned(rospy.ServiceProxy(armingtopic[i]), CommandBool))
+        set_mode_client.append(rospy.ServiceProxy(setmodetopic[i]), SetMode)
+
+    """rospy.Subscriber("uav1/mavros/state", State, state_cb1)
     rospy.Subscriber("uav2/mavros/state", State, state_cb2)
     rospy.Subscriber("uav3/mavros/state", State, state_cb3)
     rospy.Subscriber("uav4/mavros/state", State, state_cb4)
@@ -109,7 +173,7 @@ def set_up_subs_and_pubs():
     pose_pub = [local_pos_pub1,local_pos_pub2,local_pos_pub3,local_pos_pub4,local_pos_pub5]
     set_mode_client = [set_mode_client1, set_mode_client2, set_mode_client3, set_mode_client4, set_mode_client5]
     arming_client = [arming_client1, arming_client2, arming_client3, arming_client4, arming_client5]
-    location = [pos1, pos2, pos3, pos4, pos5]
+    location = [pos1, pos2, pos3, pos4, pos5]"""
 
 # **************************************
 
@@ -118,8 +182,8 @@ def set_up_subs_and_pubs():
 def check_numuav(connection):
     num = 0
     for i in range(len(connection)):
-	if connection[i]:
-	    num += 1
+        if connection[i]:
+            num += 1
     return num
 
 def check_dist(uavpose1, uavpose2, offset1,offset2):
@@ -128,37 +192,35 @@ def check_dist(uavpose1, uavpose2, offset1,offset2):
     b = uavpose1[1]-uavpose2[1]
     distance = sqrt(a**2+b**2)
     if distance < 1.5:
-	#print distance
 	    near = True
     return near
 
-def check_connection(states, direction, uavpose, offset):
+def check_connection(states, center, uavpose, offset):
     connection = True
-    center = [direction[0], direction[1], 3]
+    c = [center[0], center[1], 3] # [x, y, z]
     if states.armed:
     	for i in range(len(uavpose)):
             if i == 0:
-                Distance = center[i]-(uavpose[i]-offset)
+                Distance = c[i]-(uavpose[i]-offset)
             else:
-                Distance = center[i]-(uavpose[i])
+                Distance = c[i]-(uavpose[i])
             if abs(Distance) > 5:
                 connection = False
     else:
 	    connection = False
     return connection
 
-def pick_active_uavs(location, pose, direction, current_num_uav, offset, connection):
+def pick_active_uavs(location, pose, center, current_num_uav, offset, connection):
     my_location = []
     my_offset = []
     for i, connected in enumerate(connection):
 	if connected:
             my_location.append(location[i])
             my_offset.append(offset[i])
-
     values = {
 	'location': my_location,
 	'pose': pose,
-	'direction': direction,
+	'center': center,
 	'numuav': current_num_uav,
 	'offset': my_offset,
 	'connection': connection
@@ -169,7 +231,7 @@ def pick_active_uavs(location, pose, direction, current_num_uav, offset, connect
 
 # ************** SET UP SUBS AND PUBS *****************
 
-set_up_subs_and_pubs()
+set_up_parameters()
 
 # ****************************************************
 
@@ -177,12 +239,10 @@ WHITE = (255,255,255)
 BLACK = (0,0,0)
 r = 2
 t = 2
-dx = 0
-dy = 0
-direction = [dx, dy]
+center = [0, 0]
 z = 3
 offset = [0,2,-2,4,-4]
-numuav = 0
+numuav = 5
 shape = ''
 
 # ****************************************************
@@ -209,8 +269,9 @@ if __name__ == '__main__':
         rospy.init_node('offb_node', anonymous = True)
         rate = rospy.Rate(20)
 
-        while not (current_state1.connected and current_state2.connected and current_state3.connected and current_state4.connected and current_state5.connected):
-            rate.sleep()
+        for i in range(numuav):
+            while not current_state[i].connected: #and current_state2.connected and current_state3.connected and current_state4.connected and current_state5.connected):
+                rate.sleep()
 
         while not rospy.is_shutdown():
 
@@ -232,63 +293,62 @@ if __name__ == '__main__':
         
             setup_all_uavs(set_mode_client, arming_client)
 
-            move = [0,0]
+            increment = [0,0]
             connection = []
-            location = [pos1, pos2, pos3, pos4, pos5]
+            #location = [pos1, pos2, pos3, pos4, pos5]
             #pose = [pose1, pose2, pose3, pose4, pose5]
-            current_state = [current_state1, current_state2, current_state3, current_state4, current_state5]
+            #current_state = [current_state1, current_state2, current_state3, current_state4, current_state5]
 
             for i in range(len(current_state)):
-            connection.append(check_connection(current_state[i], direction, location[i], offset[i]))
+                connection.append(check_connection(current_state[i], center, location[i], offset[i]))
         
             current_num_uav = check_numuav(connection)
             if numuav != current_num_uav:
                 if shape:
                     if shape == 'circle':
-                        values = pick_active_uavs(location, pose, direction, current_num_uav, offset, connection)
-                        pose = ko_shapes.circle(values['location'], values['pose'], values['direction'], values['numuav'], values['offset'], values['connection'])
+                        values = pick_active_uavs(location, pose, center, current_num_uav, offset, connection)
+                        pose = ko_shapes.circle(values['location'], values['pose'], values['center'], values['numuav'], values['offset'], values['connection'])
                 numuav = current_num_uav
-            
-            for event in pygame.event.get():
-                if event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_o:
-                        pose = ko_shapes.circle(location, pose, direction, numuav, offset, connection)
-                        shape = 'circle'
 
-                    if event.key == pygame.K_x:
-                        pose = ko_shapes.xform(location, pose, direction, numuav, offset)
-                        shape = 'xform'
-
-                    if event.key == pygame.K_t:
-                        pose = ko_shapes.triangle(location, pose, direction, numuav, offset)
-                        shape = 'triangle'
-
-                    if event.key == pygame.K_l:
-                        pose = ko_shapes.line(location, pose, direction, numuav, offset)
-                        shape = 'line'
-            
             keys = pygame.key.get_pressed()
 
-            if keys[pygame.K_UP]:
-                direction[1] += 0.05
-                move[1] += 0.05
-            if keys[pygame.K_DOWN]:
-                direction[1] -= 0.05
-                move[1] -= 0.05
-            if keys[pygame.K_RIGHT]:
-                direction[0] += 0.05
-                move[0] += 0.05
-            if keys[pygame.K_LEFT]:
-                direction[0] -= 0.05
-                move[0] -= 0.05
+            if keys[pygame.K_o]:
+                pose = ko_shapes.circle(location, pose, center, numuav, offset, connection)
+                shape = 'circle'
+
+            if keys[pygame.K_x]:
+                pose = ko_shapes.xform(location, pose, center, numuav, offset)
+                shape = 'xform'
+
+            if keys[pygame.K_t]:
+                pose = ko_shapes.triangle(location, pose, center, numuav, offset)
+                shape = 'triangle'
+
+            if keys[pygame.K_l]:
+                pose = ko_shapes.line(location, pose, center, numuav, offset)
+                shape = 'line'
             
+            if keys[pygame.K_UP]:
+                increment[1] += 0.05
+
+            if keys[pygame.K_DOWN]:
+                increment[1] -= 0.05
+
+            if keys[pygame.K_RIGHT]:
+                increment[0] += 0.05
+
+            if keys[pygame.K_LEFT]:
+                increment[0] -= 0.05
+            
+            for i in range(len(center)):
+                center[i] += increment[i]
 
             for i in range(numuav):
-                pose[i].pose.position.x += move[0]
-                pose[i].pose.position.y += move[1]
+                pose[i].pose.position.x += increment[0]
+                pose[i].pose.position.y += increment[1]
 
-            for i in range(5):
-                for j in range(5):
+            for i in range(numuav):
+                for j in range(numuav):
                     if j>i:
                         if check_dist(location[i],location[j],offset[i],offset[j]):
                             pose[i].pose.position.z = 4
@@ -297,14 +357,13 @@ if __name__ == '__main__':
                             pose[i].pose.position.z = 3
                             pose[j].pose.position.z = 3
             
-
-            for i in range(5):
+            for i in range(numuav):
                 if location[i][2] <0.5:
                     pose[i].pose.position.x = location[i][0]
                     pose[i].pose.position.y = location[i][1]
                     pose[i].pose.position.z = 3
                         
-            for i in range(5):
+            for i in range(numuav):
                 pose[i].header.stamp = rospy.Time.now()
                 pose_pub[i].publish(pose[i])
         
