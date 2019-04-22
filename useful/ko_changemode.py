@@ -132,8 +132,8 @@ def set_up_parameters(numuav):
         rospy.Subscriber(statetopic[i], State, statecb, callback_args = i)
         rospy.Subscriber(posetopic[i], PoseStamped, posecb, callback_args = i)
         pose_pub.append(rospy.Publisher(publishtopic[i], PoseStamped, queue_size=10))
-        arming_client.append(rospy.ServiceProxy(armingtopic[i]), CommandBool)
-        set_mode_client.append(rospy.ServiceProxy(setmodetopic[i]), SetMode)
+        arming_client.append(rospy.ServiceProxy(armingtopic[i], CommandBool))
+        set_mode_client.append(rospy.ServiceProxy(setmodetopic[i], SetMode))
 
     """rospy.Subscriber("uav1/mavros/state", State, state_cb1)
     rospy.Subscriber("uav2/mavros/state", State, state_cb2)
